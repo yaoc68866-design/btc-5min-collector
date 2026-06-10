@@ -1,0 +1,35 @@
+# 数据文件（太大，不上传）
+btc_data/
+data/
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 图片
+*.png
+*.jpg
+
+# 日志
+*.log
+nohup.log
+
+# 临时文件
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# 打包文件（源文件已在仓库中）
+*.tar.gz
+*.zip
+
+# 系统文件
+新建*.txt

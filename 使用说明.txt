@@ -1,0 +1,132 @@
+================================================================
+  Polymarket BTC 5min/15min 高频数据采集系统
+  使用说明
+================================================================
+
+【系统概述】
+  本系统用于采集 BTC 实时价格数据（每秒3次）和 Polymarket
+  BTC Up/Down 市场的订单簿数据，自动聚合 5 分钟 K 线，
+  为后续量化交易策略提供数据基础。
+
+【文件清单】
+
+  btc_collector_package/        ← 部署包（上传到新加坡服务器）
+    ├── collector.py            ← 主采集器 (24x7 运行)
+    ├── analyzer.py             ← 统计分析器
+    ├── chart_generator.py      ← K线图生成器
+    ├── start.sh                ← 一键部署脚本
+    ├── requirements.txt        ← Python 依赖
+    ├── README.md               ← 英文说明
+    └── data/                   ← 数据目录（自动创建）
+
+  btc_collector_package.tar.gz  ← 打包好的部署文件
+
+  btc_hft_bot.py                ← Polymarket 高频交易机器人（演示）
+  btc_5min_collector_daemon.py  ← 本地采集器（在本地电脑运行）
+  btc_5min_analyzer.py          ← 本地分析器
+  btc_kline_chart.py            ← K线图绘制脚本
+  polymarket_orderbook_chart.py ← Polymarket 订单簿图表
+  polymarket_fetch.py           ← Polymarket 市场数据抓取
+
+================================================================
+  方式一：部署到新加坡云服务器（推荐）
+================================================================
+
+  1. 将 btc_collector_package.tar.gz 上传到服务器：
+     scp btc_collector_package.tar.gz root@服务器IP:/opt/
+
+  2. SSH 登录服务器，解压：
+     cd /opt
+     tar xzf btc_collector_package.tar.gz
+     cd btc_collector_package
+
+  3. 一键启动（选 3 安装为系统服务，开机自启）：
+     chmod +x start.sh
+     ./start.sh
+
+  4. 或手动后台启动：
+     pip3 install -r requirements.txt
+     nohup python3 collector.py > data/nohup.log 2>&1 &
+
+  5. 查看运行状态：
+     tail -f data/collector.log
+
+  6. 运行分析报告：
+     python3 analyzer.py
+     python3 analyzer.py --days 7    # 最近7天
+     python3 analyzer.py --chart     # 生成K线图
+
+================================================================
+  方式二：本地 Windows 电脑运行
+================================================================
+
+  1. 安装依赖：
+     C:\Users\33487\AppData\Local\Programs\Python\Python312\python.exe -m pip install requests matplotlib numpy Pillow
+
+  2. 运行采集器（前台，Ctrl+C 停止）：
+     python btc_5min_collector_daemon.py
+
+  3. 运行分析：
+     python btc_5min_analyzer.py
+
+  4. 生成K线图：
+     python btc_kline_chart.py
+
+================================================================
+  数据产出说明
+================================================================
+
+  采集器运行后，在 btc_data/ 目录下生成：
+
+  btc_ticks.csv              ← BTC 实时价格（每秒3次采样）
+  btc_5min_klines.csv        ← 5分钟 K 线（开盘/最高/最低/收盘/成交量）
+  polymarket_ob_ticks.csv    ← Polymarket 订单簿快照（买卖单价格 0-100）
+
+  服务器版按天分文件：
+  btc_ticks_20260610.csv
+  btc_5min_klines_20260610.csv
+  polymarket_ob_20260610.csv
+
+================================================================
+  K 线图说明
+================================================================
+
+  纵坐标 0-100 的含义：
+
+  对于 BTC 实际价格图（btc_kline_chart.py）：
+    0   = 所选时间段内 BTC 最低价
+    100 = 所选时间段内 BTC 最高价
+    50  = 价格区间中间值
+
+  对于 Polymarket 订单簿图（polymarket_orderbook_chart.py）：
+    0   = Token 价格 $0.00（0% 概率）
+    50  = Token 价格 $0.50（50% 概率）
+    100 = Token 价格 $1.00（100% 概率）
+    买卖单价格直接对应市场预测的概率百分比
+
+================================================================
+  已知问题
+================================================================
+
+  1. Polymarket BTC 短期市场流动性极差（价差 98 点），
+     不适合实际交易，仅适合数据研究。
+
+  2. 中国大陆网络可能无法直接访问 Polymarket API，
+     需要代理或部署在境外服务器。
+
+  3. Binance WebSocket 在大陆可能被墙，
+     REST API 一般可用。
+
+================================================================
+  联系与支持
+================================================================
+
+  策略思路：利用 BTC 5min K 线统计规律，
+  在 Polymarket Up/Down 市场寻找概率偏差机会。
+
+  建议的替代交易场所（流动性更好）：
+  - Deribit: BTC 二元期权，有短期到期品种
+  - Binance: 永续合约，直接做多/做空
+  - Bybit: 合约交易，深度好
+
+================================================================
