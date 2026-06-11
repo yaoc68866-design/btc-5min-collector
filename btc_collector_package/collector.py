@@ -105,15 +105,17 @@ class PolymarketCollector:
                             if not clob_ids:
                                 continue
 
-                            # 检查订单簿是否活跃（非极端价格）
+                            # 检查订单簿是否活跃（过滤已归零/无流动性的）
                             active = True
+                            ob_details = []
                             for tid in clob_ids:
                                 ob = self.get_order_book(tid)
                                 if ob and ob["best_bid"] is not None and ob["best_ask"] is not None:
                                     mid = (ob["best_bid"] + ob["best_ask"]) / 2
                                     spread = ob["best_ask"] - ob["best_bid"]
-                                    # 活跃市场: mid在0.3~0.7之间, spread < 0.3
-                                    if 0.3 <= mid <= 0.7 and spread < 0.3:
+                                    ob_details.append(f"mid={mid:.2f} spread={spread:.2f}")
+                                    # 活跃市场: mid不在极端(0或1), spread < 0.98
+                                    if 0.01 <= mid <= 0.99 and spread <= 0.98:
                                         pass  # 活跃
                                     else:
                                         active = False
@@ -121,6 +123,8 @@ class PolymarketCollector:
                                 else:
                                     active = False
                                     break
+
+                            log(f"  扫描市场: {ev['title']} closed={ev.get('closed')} {'活跃' if active else '跳过'} ({', '.join(ob_details)})")
 
                             if active:
                                 return {
