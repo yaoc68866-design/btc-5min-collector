@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# BTC 5min 数据采集器 启动脚本
+# Polymarket 订单簿采集器 启动脚本
 # 用于新加坡云服务器
 # ============================================
 
@@ -10,7 +10,7 @@ cd "$(dirname "$0")"
 SCRIPT_DIR="$(pwd)"
 
 echo "=========================================="
-echo " BTC 5min 采集器 部署脚本"
+echo " Polymarket BTC 订单簿采集器 部署脚本"
 echo "=========================================="
 
 # 1. 检查 Python
@@ -57,7 +57,7 @@ case $choice in
         echo "[安装] systemd 服务..."
         sudo tee $SERVICE_FILE > /dev/null <<EOF
 [Unit]
-Description=BTC 5min K-line Collector
+Description=Polymarket BTC Order Book Collector
 After=network.target
 
 [Service]

@@ -1,12 +1,29 @@
-# BTC 5min K线 高频数据采集系统
+# Polymarket BTC Up/Down 订单簿采集系统
 
 ## 功能
 
 | 模块 | 说明 |
 |------|------|
-| `collector.py` | 主采集器：BTC价格(3次/秒) + Polymarket订单簿 + 5min K线聚合 |
-| `analyzer.py` | 统计分析器：涨跌概率、波动率、时段分布、生成K线图 |
+| `collector.py` | Polymarket BTC Up/Down 订单簿采集器，自动发现活跃市场 |
+| `analyzer.py` | 订单簿统计分析：价差、隐含概率、买卖失衡、时段分布、趋势图 |
 | `start.sh` | 一键部署脚本 |
+
+## 采集的数据
+
+```
+data/
+└── polymarket_ob_20260610.csv     # Polymarket 订单簿快照
+    ├── timestamp                  # Unix 时间戳
+    ├── datetime                   # ISO 格式时间
+    ├── token                      # Up / Down
+    ├── market_title               # 市场标题（含时间段）
+    ├── best_bid                   # 最优买价 (0~1)
+    ├── best_ask                   # 最优卖价 (0~1)
+    ├── bid_size                   # 买盘深度 (美元)
+    ├── ask_size                   # 卖盘深度 (美元)
+    ├── bids_json                  # 前10档买单 [[price, size], ...]
+    └── asks_json                  # 前10档卖单 [[price, size], ...]
+```
 
 ## 在新加坡服务器上部署
 
@@ -45,16 +62,6 @@ pip3 install -r requirements.txt
 nohup python3 collector.py > data/nohup.log 2>&1 &
 ```
 
-## 数据输出
-
-```
-data/
-├── btc_ticks_20260610.csv        # 每秒3次的BTC价格
-├── btc_5min_klines_20260610.csv   # 5分钟K线(OHLCV)
-├── polymarket_ob_20260610.csv     # Polymarket订单簿快照
-└── collector.log                  # 运行日志
-```
-
 ## 分析命令
 
 ```bash
@@ -64,7 +71,7 @@ python3 analyzer.py
 # 分析最近7天
 python3 analyzer.py --days 7
 
-# 生成K线图
+# 生成订单簿趋势图
 python3 analyzer.py --chart
 
 # 查看实时日志
@@ -84,9 +91,9 @@ journalctl -u btc-collector -f        # 查看日志
 
 | 指标 | 约值 |
 |------|------|
-| CPU | < 5% (单核) |
-| 内存 | ~50MB |
-| 磁盘 | ~100MB/天 |
-| 网络 | ~5MB/天 |
+| CPU | < 2% (单核) |
+| 内存 | ~30MB |
+| 磁盘 | ~50MB/天 |
+| 网络 | ~3MB/天 |
 
-新加坡服务器到 Binance API 延迟 ~5-10ms，到 Polymarket API 延迟 ~50-100ms。
+新加坡服务器到 Polymarket API 延迟 ~50-100ms。
