@@ -1,19 +1,19 @@
 ================================================================
-  Polymarket BTC 5min/15min 高频数据采集系统
+  Polymarket BTC Up/Down 订单簿采集系统  v2.0.0
   使用说明
 ================================================================
 
 【系统概述】
-  本系统用于采集 BTC 实时价格数据（每秒3次）和 Polymarket
-  BTC Up/Down 市场的订单簿数据，自动聚合 5 分钟 K 线，
-  为后续量化交易策略提供数据基础。
+  本系统专注于采集 Polymarket BTC Up/Down 市场的订单簿数据，
+  每秒抓取一次完整的买卖盘深度（前10档），支持 5min 和 15min 市场。
+
+  更新于 2026-06-11
 
 【文件清单】
 
   btc_collector_package/        ← 部署包（上传到新加坡服务器）
     ├── collector.py            ← 主采集器 (24x7 运行)
-    ├── analyzer.py             ← 统计分析器
-    ├── chart_generator.py      ← K线图生成器
+    ├── analyzer.py             ← 订单簿统计分析器
     ├── start.sh                ← 一键部署脚本
     ├── requirements.txt        ← Python 依赖
     ├── README.md               ← 英文说明
@@ -21,12 +21,13 @@
 
   btc_collector_package.tar.gz  ← 打包好的部署文件
 
+  deploy_to_server.py           ← 自动部署脚本
+
   btc_hft_bot.py                ← Polymarket 高频交易机器人（演示）
-  btc_5min_collector_daemon.py  ← 本地采集器（在本地电脑运行）
-  btc_5min_analyzer.py          ← 本地分析器
-  btc_kline_chart.py            ← K线图绘制脚本
   polymarket_orderbook_chart.py ← Polymarket 订单簿图表
   polymarket_fetch.py           ← Polymarket 市场数据抓取
+
+  CHANGELOG.md                  ← 更新日志
 
 ================================================================
   方式一：部署到新加坡云服务器（推荐）
@@ -54,79 +55,76 @@
   6. 运行分析报告：
      python3 analyzer.py
      python3 analyzer.py --days 7    # 最近7天
-     python3 analyzer.py --chart     # 生成K线图
-
-================================================================
-  方式二：本地 Windows 电脑运行
-================================================================
-
-  1. 安装依赖：
-     C:\Users\33487\AppData\Local\Programs\Python\Python312\python.exe -m pip install requests matplotlib numpy Pillow
-
-  2. 运行采集器（前台，Ctrl+C 停止）：
-     python btc_5min_collector_daemon.py
-
-  3. 运行分析：
-     python btc_5min_analyzer.py
-
-  4. 生成K线图：
-     python btc_kline_chart.py
+     python3 analyzer.py --chart     # 生成订单簿趋势图
 
 ================================================================
   数据产出说明
 ================================================================
 
-  采集器运行后，在 btc_data/ 目录下生成：
+  采集器运行后，在 data/ 目录下按天生成：
 
-  btc_ticks.csv              ← BTC 实时价格（每秒3次采样）
-  btc_5min_klines.csv        ← 5分钟 K 线（开盘/最高/最低/收盘/成交量）
-  polymarket_ob_ticks.csv    ← Polymarket 订单簿快照（买卖单价格 0-100）
+  polymarket_ob_20260611.csv   ← Polymarket 订单簿快照
 
-  服务器版按天分文件：
-  btc_ticks_20260610.csv
-  btc_5min_klines_20260610.csv
-  polymarket_ob_20260610.csv
+  字段说明：
+    timestamp      Unix 时间戳
+    datetime       ISO 格式时间（北京时间 +8h）
+    token          Up 或 Down
+    market_title   市场标题（含时间段）
+    best_bid       最优买价 (概率价格, 0.00~1.00)
+    best_ask       最优卖价 (概率价格, 0.00~1.00)
+    bid_size       买盘深度 (美元)
+    ask_size       卖盘深度 (美元)
+    bids_json      前10档买单 [[价格, 数量], ...]
+    asks_json      前10档卖单 [[价格, 数量], ...]
 
 ================================================================
-  K 线图说明
+  分析器输出说明
 ================================================================
 
-  纵坐标 0-100 的含义：
+  python3 analyzer.py 输出包含：
 
-  对于 BTC 实际价格图（btc_kline_chart.py）：
-    0   = 所选时间段内 BTC 最低价
-    100 = 所选时间段内 BTC 最高价
-    50  = 价格区间中间值
+    价差分析    — spread 均值/中位数/最大/最小/标准差
+    Up隐含概率  — 市场对 BTC 上涨的概率预期
+    买卖失衡    — 买卖盘深度偏向
+    时段分析    — 按小时统计价差和深度分布
 
-  对于 Polymarket 订单簿图（polymarket_orderbook_chart.py）：
-    0   = Token 价格 $0.00（0% 概率）
-    50  = Token 价格 $0.50（50% 概率）
-    100 = Token 价格 $1.00（100% 概率）
-    买卖单价格直接对应市场预测的概率百分比
+  python3 analyzer.py --chart 生成：
+    上图 — Up/Down 隐含概率趋势（0~100%）
+    下图 — 价差随时间变化
+
+================================================================
+  v2.0.0 主要变更 (2026-06-11)
+================================================================
+
+  移除：
+    - BTC 价格采集 (不再请求 Binance/Bybit)
+    - 5min K线聚合
+    - chart_generator.py
+
+  新增/优化：
+    - 采样频率: 2秒 -> 1秒
+    - 订单簿深度: 5档 -> 10档
+    - 活跃度检测 (自动跳过已结算/无流动性市场)
+    - analyzer.py 重写为 Polymarket 订单簿分析器
+    - 资源消耗降低 50%+
 
 ================================================================
   已知问题
 ================================================================
 
-  1. Polymarket BTC 短期市场流动性极差（价差 98 点），
-     不适合实际交易，仅适合数据研究。
+  1. Polymarket BTC 短期市场在 ET 凌晨时段不创建新市场，
+     采集器会自动等待，市场恢复后自动采集。
 
   2. 中国大陆网络可能无法直接访问 Polymarket API，
-     需要代理或部署在境外服务器。
+     需要部署在境外服务器。
 
-  3. Binance WebSocket 在大陆可能被墙，
-     REST API 一般可用。
+  3. 采集器已内置活跃度检测，不会采集已结算或
+     无流动性的市场数据。
 
 ================================================================
   联系与支持
 ================================================================
 
-  策略思路：利用 BTC 5min K 线统计规律，
-  在 Polymarket Up/Down 市场寻找概率偏差机会。
-
-  建议的替代交易场所（流动性更好）：
-  - Deribit: BTC 二元期权，有短期到期品种
-  - Binance: 永续合约，直接做多/做空
-  - Bybit: 合约交易，深度好
-
+  GitHub: https://github.com/yaoc68866-design/btc-5min-collector
+  更新日志: CHANGELOG.md
 ================================================================
