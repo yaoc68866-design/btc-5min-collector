@@ -14,12 +14,12 @@ Polymarket BTC Up/Down 订单簿采集器
   nohup python collector.py &    # 后台运行
 """
 
-import csv, os, time, math, json, signal, requests
+import argparse, csv, os, time, math, json, signal, requests
 from datetime import datetime
 from pathlib import Path
 
 # ============================================================
-# 配置
+# 配置 (运行时可通过命令行参数覆盖)
 # ============================================================
 CONFIG = {
     # 数据保存目录
@@ -30,7 +30,9 @@ CONFIG = {
     "clob_api": "https://clob.polymarket.com",
 
     # 采集参数
-    "poly_sample_interval": 1,   # Polymarket OB 采样间隔(秒)
+    "poly_sample_interval": 0.33,  # 采样间隔(秒) — 默认 3次/秒
+    "ob_depth": 10,                 # 订单簿深度(档位)
+    "batch_size": 50,               # 批量写入条数
 
     # 日志
     "log_file": "./data/collector.log",
@@ -158,8 +160,8 @@ class PolymarketCollector:
             )
             if r.ok:
                 book = r.json()
-                bids = [(float(b["price"]), float(b["size"])) for b in book.get("bids", [])[:10]]
-                asks = [(float(a["price"]), float(a["size"])) for a in book.get("asks", [])[:10]]
+                bids = [(float(b["price"]), float(b["size"])) for b in book.get("bids", [])[:CONFIG["ob_depth"]]]
+                asks = [(float(a["price"]), float(a["size"])) for a in book.get("asks", [])[:CONFIG["ob_depth"]]]
                 return {
                     "best_bid": bids[0][0] if bids else None,
                     "best_ask": asks[0][0] if asks else None,
@@ -265,8 +267,8 @@ class CollectorDaemon:
                         else:
                             self.stats["errors"] += 1
 
-                # 批量写入 (每50条)
-                if len(self.poly_buffer) >= 50:
+                # 批量写入
+                if len(self.poly_buffer) >= CONFIG["batch_size"]:
                     self.store.save_poly_ob(self.poly_buffer)
                     self.poly_buffer.clear()
 
@@ -292,5 +294,22 @@ class CollectorDaemon:
 
 # ============================================================
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Polymarket BTC Up/Down 订单簿采集器")
+    parser.add_argument("--interval", type=float, default=0.33,
+                        help="采样间隔(秒)，默认 0.33 (3次/秒)")
+    parser.add_argument("--depth", type=int, default=10,
+                        help="订单簿深度，默认 10 档")
+    parser.add_argument("--batch", type=int, default=50,
+                        help="批量写入条数，默认 50")
+    parser.add_argument("--data-dir", type=str, default="./data",
+                        help="数据保存目录，默认 ./data")
+    args = parser.parse_args()
+
+    CONFIG["poly_sample_interval"] = args.interval
+    CONFIG["ob_depth"] = args.depth
+    CONFIG["batch_size"] = args.batch
+    CONFIG["data_dir"] = args.data_dir
+    CONFIG["log_file"] = os.path.join(args.data_dir, "collector.log")
+
     daemon = CollectorDaemon()
     daemon.run()
