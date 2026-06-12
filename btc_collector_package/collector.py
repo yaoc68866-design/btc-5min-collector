@@ -74,8 +74,9 @@ class PolymarketCollector:
 
         for tf in ["5m", "15m"]:
             tf_sec = 900 if tf == "15m" else 300
-            # 搜索前后各 6 个窗口
-            for offset in range(-6, 7):
+            # 搜索窗口（优先当前窗口: 0, -1, 1, -2, 2, ...）
+            offsets = [0] + [i for j in range(1, 7) for i in (-j, j)]
+            for offset in offsets:
                 ts = window + offset * tf_sec
                 slug = f"btc-updown-{tf}-{ts}"
                 try:
@@ -105,28 +106,36 @@ class PolymarketCollector:
                             if not clob_ids:
                                 continue
 
-                            # 检查订单簿是否活跃（过滤已归零/无流动性的）
+                            # 检查订单簿是否活跃
+                            # 关键修复：不再要求所有 side 都有订单
+                            # 只要 market 未关闭(clased=False)且有至少一个有意义的订单簿就采集
                             active = True
                             ob_details = []
+                            has_any_data = False
                             for tid in clob_ids:
                                 ob = self.get_order_book(tid)
-                                if ob and ob["best_bid"] is not None and ob["best_ask"] is not None:
-                                    mid = (ob["best_bid"] + ob["best_ask"]) / 2
-                                    spread = ob["best_ask"] - ob["best_bid"]
-                                    ob_details.append(f"mid={mid:.2f} spread={spread:.2f}")
-                                    # 活跃市场: mid不在极端(0或1), spread < 0.98
-                                    if 0.01 <= mid <= 0.99 and spread <= 0.98:
-                                        pass  # 活跃
+                                if ob:
+                                    bb = ob["best_bid"]
+                                    ba = ob["best_ask"]
+                                    if bb is not None and ba is not None:
+                                        mid = (bb + ba) / 2
+                                        spread = ba - bb
+                                        ob_details.append(f"mid={mid:.2f} spread={spread:.2f}")
+                                        has_any_data = True
+                                    elif bb is not None:
+                                        ob_details.append(f"bid={bb:.2f} ask=None")
+                                        has_any_data = True
+                                    elif ba is not None:
+                                        ob_details.append(f"bid=None ask={ba:.2f}")
+                                        has_any_data = True
                                     else:
-                                        active = False
-                                        break
+                                        ob_details.append("empty")
                                 else:
-                                    active = False
-                                    break
+                                    ob_details.append("ERR")
 
                             log(f"  扫描市场: {ev['title']} closed={ev.get('closed')} {'活跃' if active else '跳过'} ({', '.join(ob_details)})")
 
-                            if active:
+                            if active and has_any_data:
                                 return {
                                     "title": ev["title"],
                                     "tf": tf,
